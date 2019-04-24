@@ -2,21 +2,27 @@ import numpy as np
 import pickle
 import re
 import json
+from cucco import Cucco
 
 
 def load_data(filepath):
     captions = []
     tags=[]
+    zipped=()
+
+    cucco=Cucco()
+
     with open(filepath, 'r+') as file:
         doc = file.read()
-
     doc = json.loads(doc)
     for obj in doc:
         for post in doc[obj]:
             hashtags = doc[obj][post]['tags']
             if len(hashtags)>0:
-                captions += [''.join(doc[obj][post]['caption'])]
-                tags += [hashtags]
+                capt = [cucco.replace_emojis(str(doc[obj][post]['caption']).lower(),'')]
+                tags += hashtags
+                cap = capt*len(hashtags)
+                captions += cap
     return captions,tags
 
 def write_pickle(data, filepath):
@@ -50,11 +56,11 @@ def word_idx_mappings(doc, tags=True):
     word2idx = {}
     word2idx['_PAD_']=0
     idx=1
-
-    for word in doc.lower().split():
-        if word not in word2idx:
-            word2idx[word]=idx
-            idx += 1
+    for line in doc:
+        for word in line.split():
+            if word not in word2idx:
+                word2idx[word]=idx
+                idx += 1
     idx2word = {index:word for word,index in word2idx.items()}
 
     vocab_size = len(idx2word)
@@ -78,11 +84,10 @@ def make_input_output_pairs(data):
 def text2idx(doc,word2idx, dowrite=False, write_path=None, tags=False):
 
 
-    lines = doc.split('\n')
     doc_lines = []
     lengths = [] 
-    for line in lines:
-        if len(line)<3:
+    for line in doc:
+        if len(line)<1:
             #skip empty lines.
             continue
         words = line.lower().split()
@@ -96,7 +101,7 @@ def text2idx(doc,word2idx, dowrite=False, write_path=None, tags=False):
     if dowrite:
         if write_path is None:
             raise Exception('No File Path specified! Not writing anything')
-            return doc_lines
+            return doc_lines,lengths
         else:
             write_pickle(doc_lines,write_path)
     return doc_lines, lengths
@@ -120,7 +125,7 @@ def generate_train_test_split(inputs,outputs, lengths,split=0.8):
     train_inputs = inputs[train_idx]
     train_outputs = outputs[train_idx]
     test_inputs = inputs[test_idx]
-    test_outputs = inputs[test_idx]
+    test_outputs = outputs[test_idx]
     train_lengths = lengths[train_idx]
     test_lengths = lengths[test_idx]
     return train_inputs,train_outputs,train_lengths, test_inputs, test_outputs, test_lengths
